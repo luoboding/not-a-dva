@@ -1,12 +1,26 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
-import './index.css';
-import App from './App';
+import createHashHistory from 'history/createHashHistory';
+import { Route, Router, Switch } from 'react-router-dom';
+import { createLogger } from 'redux-logger';
+import Todo from './todo';
 import * as serviceWorker from './serviceWorker';
+import dva from './utils/dva.js';
 
-ReactDOM.render(<App />, document.getElementById('root'));
+const app = dva({
+  history: createHashHistory(),
+});
+app.use(createLogger());
+app.model(require('./todo/models/model').default);
 
-// If you want your app to work offline and load faster, you can change
-// unregister() to register() below. Note this comes with some pitfalls.
-// Learn more about service workers: http://bit.ly/CRA-PWA
+app.router(({ history }) => {
+  return (
+    <Router history={history}>
+      <Switch>
+        <Route path="/" component={Todo} />
+      </Switch>
+    </Router>
+  );
+});
+app.start('#root');
+
 serviceWorker.unregister();
