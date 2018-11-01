@@ -14,6 +14,38 @@ import createSagaMiddleware from 'redux-saga';
 import { Provider } from 'react-redux';
 
 // 我们根据dva的签名来推导这个函数的实现
+
+function createReducer(initialState, handlers) {
+  return (state = initialState, action) => {
+    const { type } = action;
+    if (handlers[type]) {
+      return handlers[type](state, action);
+    }
+    return state;
+  };
+}
+
+/**
+ * 包装reducerHandler
+ * @param {Object} handlers
+ * @returns Function
+ */
+function bindNamespaceToHandler(handlers) {
+  if (typeof handlers !== 'object' || handlers === null) {
+    throw new Error('reducer handler error');
+  }
+  return function namespanced(namespace) {
+    const newHandler = {};
+    const keys = Object.keys(handlers);
+    keys.forEach((key) => {
+      const namespacedKey = `${namespace}/${key}`;
+      Object.assign(newHandler, {
+        [namespacedKey]: handlers[key],
+      });
+    });
+    return newHandler;
+  };
+}
 const setupKey = 'setup';
 export default function dva(options) {
   const sagaMiddleware = createSagaMiddleware();
@@ -57,15 +89,7 @@ export default function dva(options) {
       }
       // 处理reducer
       Object.assign(reducerMapping, {
-        [namespace]: (s = state, a) => {
-          const { type } = a;
-          const computedType = type.substring(type.indexOf('/') + 1);
-          if (computedType in reducers && reducers[computedType]) {
-            const computedState = reducers[computedType](s, a);
-            return computedState;
-          }
-          return s;
-        },
+        [namespace]: createReducer(state, bindNamespaceToHandler(reducers)(namespace)),
       });
       // 处理saga 并且装饰put函数
       function* decoratedPut(action) {
