@@ -14,7 +14,6 @@ import createSagaMiddleware from 'redux-saga';
 import { Provider } from 'react-redux';
 
 // 我们根据dva的签名来推导这个函数的实现
-
 function createReducer(initialState, handlers) {
   return (state = initialState, action) => {
     const { type } = action;
@@ -32,7 +31,7 @@ function createReducer(initialState, handlers) {
  */
 function bindNamespaceToHandler(handlers) {
   if (typeof handlers !== 'object' || handlers === null) {
-    throw new Error('reducer handler error');
+    throw new Error('reducer handler must be an error.');
   }
   return function namespanced(namespace) {
     const newHandler = {};
@@ -46,6 +45,32 @@ function bindNamespaceToHandler(handlers) {
     return newHandler;
   };
 }
+
+function createSagaWithNamespacedPut(namespacedPut) {
+  return (handlers) => {
+    const sagaHandler = {};
+    const keys = Object.keys(handlers);
+    const sagas = [];
+    keys.forEach((key) => {
+      const element = handlers[key];
+      if (!element) {
+        throw new Error('effect handler error');
+      }
+      if (element.constructor.name !== 'GeneratorFunction') {
+        throw new Error('effect handler must be a generator.');
+      }
+      Object.assign(sagaHandler, {
+        [key]: element,
+      });
+      sagas.push(takeEvery(key, function* init(action) {
+        const { type } = action;
+        yield sagaHandler[type](action, { call, fork, put: namespacedPut });
+      }));
+    });
+    return sagas;
+  };
+}
+
 const setupKey = 'setup';
 export default function dva(options) {
   const sagaMiddleware = createSagaMiddleware();
@@ -91,6 +116,7 @@ export default function dva(options) {
       Object.assign(reducerMapping, {
         [namespace]: createReducer(state, bindNamespaceToHandler(reducers)(namespace)),
       });
+      const effectHandler = bindNamespaceToHandler(effects)(namespace);
       // 处理saga 并且装饰put函数
       function* decoratedPut(action) {
         const { type } = action;
@@ -99,15 +125,7 @@ export default function dva(options) {
           type: `${namespace}/${type}`,
         });
       }
-      /* eslint guard-for-in: 0 */
-      for (const key in effects) {
-        const computedKey = `${namespace}/${key}`;
-        sagas.push(takeEvery(computedKey, function *init(action) {
-          const { type } = action;
-          const computedType = type.substring(type.indexOf('/') + 1);
-          yield effects[computedType](action, { call, put: decoratedPut, fork });
-        }));
-      }
+      Array.prototype.push.apply(sagas, createSagaWithNamespacedPut(decoratedPut)(effectHandler));
     },
     use(middleware) {
       middlewares.push(middleware);
