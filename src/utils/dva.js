@@ -58,9 +58,9 @@ function createSagaWithNamespacedPut(namespacedPut) {
       }
       console.log('element type', typeof element);
       console.log('element.constructor.name', element.constructor.name);
-      if (element.constructor.name !== 'GeneratorFunction') {
-        throw new Error('effect handler must be a generator.');
-      }
+      // if (element.constructor.name !== 'GeneratorFunction') {
+      //   throw new Error('effect handler must be a generator.');
+      // }
       Object.assign(sagaHandler, {
         [key]: element,
       });
